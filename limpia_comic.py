@@ -2,12 +2,14 @@ import os
 import shutil
 import sys
 import stat
-import py7zlib
+# import py7zlib
+import patoolib
+
 
 
 # Defino las variables generales
 if not len(sys.argv) > 1:
-    input_dir = r"d:\COMICS\Batman - Three Jockers"
+    input_dir = r"D:\COMICS_MALOS\COMIC_MALO.cbz"
 else:
     input_dir = sys.argv[1]
 
@@ -52,8 +54,23 @@ def limpiar_temporal(temp_dir, log):
             shutil.rmtree(temp_dir, ignore_errors=True)
             os.makedirs(temp_dir)
 
+def descomprimir_archivo(ruta_archivo, directorio_salida):
+  with patoolib.Archive(ruta_archivo) as archivo:
+    for nombre_archivo in archivo.namelist():
+      contenido = archivo.read(nombre_archivo)
+      ruta_salida = os.path.join(directorio_salida, nombre_archivo)  
+      with open(ruta_salida, 'wb') as f:
+        f.write(contenido)
 
-
+def comprimir_directorio(ruta_directorio, archivo_salida):
+  nombres_archivos = os.listdir(ruta_directorio)
+  archivos = [os.path.join(ruta_directorio, nombre) for nombre in nombres_archivos]
+  patoolib.create_archive(
+      archivo_salida,  
+      archivos, 
+      format="zip",
+      compression=zipfile.ZIP_STORED
+  )
 
 with open(log_file, "w") as log:
     log.write("Defino las variables\n")
@@ -102,8 +119,7 @@ with open(log_file, "w") as log:
 
             # Extraigo el comic en el directorio temporal
             log.write("Extraigo el comic en el directorio temporal\n")
-            with py7zlib.SevenZipFile(file_path, 'r') as archivo: 
-                archivo.extractall(temp_dir)
+            descomprimir_archivo(file_path, temp_dir)
             
             # Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema
             log.write("Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema\n")
@@ -164,7 +180,7 @@ with open(log_file, "w") as log:
                             pass
                         
             # Elimino los ficheros que contienen cadenas prohibidas
-            log.write("Elimino los ficheros que contienen cadenas prohibidas\n")
+            log.write("Elimino las imagenes que contienen cadenas prohibidas\n")
             with open(patrones_prohibidos_file, "r") as cadenas_prohibidas:
                 for cadena in cadenas_prohibidas:
                     cadena = cadena.strip()
@@ -177,14 +193,9 @@ with open(log_file, "w") as log:
                                     log.write("Borro %s\n" % file_path)
                                 except PermissionError:
                                     log.write("No se pudo borrar %s\n" % file_path)
-                                    pass
-            '''
-            # Borro el fichero del comic original
-            log.write("Borro el fichero del comic original\n")
-            comic_dir = os.path.dirname(file_path)
-            comic_name = os.path.splitext(os.path.basename(file_path))[0]
-            os.remove(file_path)
-            '''
+                                    limpiar_temporal(temp_dir, log)
+                                    exit(1)
+
             # Renombro el fichero antiguo antes de borrarlo
             directorio = os.path.dirname(file_path)
             nombre_archivo = os.path.basename(file_path)
@@ -195,26 +206,24 @@ with open(log_file, "w") as log:
 
             # Comprimo todos los ficheros de nuevo en modo store con la extensión cbz
             log.write("Comprimo todos los ficheros de nuevo en modo store con la extensión cbz\n")
-            with shutil.ZipFile(file_path, 'w', compression=shutil.ZIP_DEFLATED, allowZip64=True) as zf:
-                for raiz, dirs, archivos in os.walk(temp_dir):
-                    for archivo in archivos:
-                        ruta_archivo = os.path.join(raiz, archivo)
-                        try:
-                            zf.write(ruta_archivo)
-                        except PermissionError:
-                            # Si no se puede comprimir hay que limpiar el temporal y salir con error
-                            log.write("No se pudo comprimir %s\n" % ruta_archivo)
-                            limpiar_temporal(temp_dir, log)
+            try:
+                comprimir_directorio(temp_dir, file_path)
+            except:
+                # Si no se puede comprimir hay que limpiar el temporal y salir con error
+                log.write("No se pudo comprimir %s\n" % file_path)
+                limpiar_temporal(temp_dir, log)
+                exit(1)
                             
             # Si se ha creado el nuevo fichero y su longitud es aproximadamente igual al fichero original, lo borro
-            log.write("Si se ha creado el nuevo fichero y su longitud es aproximadamente igual al fichero original, lo borro\n")
             if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and os.path.getsize(file_path) > os.path.getsize(ruta_nueva):
                 os.remove(file_path)
-                log.write("Borro %s\n" % file_path)
+                log.write("Se ha creado el nuevo fichero comic\n")
             else:
                 # Borro el nuevo fichero y renombro el antiguo como era originalmente y salgo con error
-                log.write("No se ha borrado %s\n" % file_path)
+                log.write("No se ha podido borrar el comic antiguo. Restaurandolo%s\n" % file_path)
+                # Borro el nuevo
                 os.remove(ruta_nueva)
+                # renombro el antiguo.
                 os.rename(file_path, nombre_archivo)
                 exit(1)
                 
@@ -233,4 +242,4 @@ comento esto porque hay que probar todo lo anterior
     os.system("call \"%s\\comictagger.exe\" -R -r -t cr %s" % (prog_dir, input_dir))
 '''
 
-    log.write("exit 0\n")
+log.write("exit 0\n")
