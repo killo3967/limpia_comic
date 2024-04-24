@@ -2,7 +2,6 @@ import os
 import shutil
 import sys
 import stat
-# import py7zlib
 import patoolib
 
 
@@ -135,6 +134,16 @@ with open(log_file, "w") as log:
             atributos |= stat.FILE_ATTRIBUTE_NORMAL
 
             os.chmod(file_path, atributos)
+            
+            
+            # Miro en el directorio temporal si hay algun fichero con extension cbr o cbz
+            log.write("Miro en el directorio temporal si hay algun fichero con extension cbr o cbz\n")
+            for archivo in os.listdir(temp_dir):
+                nombre, extension = os.path.splitext(archivo)
+                if extension in [".cbr", ".cbz"]:
+                    print("Se encontró comics dentro del comic. No se procesara")
+                    limpiar_temporal(temp_dir, log)
+                    sys.exit(1)            
             
             
             # Borro directorio ".DS_Store" y "__MACOSX" de forma recursiva
