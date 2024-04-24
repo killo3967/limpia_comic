@@ -33,37 +33,24 @@ log_file = os.path.join(log_dir, "%s.log" % os.path.splitext(os.path.basename(in
 # Defino el fichero de patrones prohibidos
 patrones_prohibidos_file = os.path.join(prog_dir, "patrones_prohibidos.cfg")
 
-''' 
-Creates the log directory if it does not already exist. 
-This ensures that the log file can be written to the appropriate location.
-'''
+# Creo directorio de log si no existe
 try:
      os.makedirs(log_dir)
 except OSError:
     pass
 
-'''
-Creates the temporary directory if it does not already exist. 
-This is necessary to store temporary files used during the script's execution.
-'''
+# Creo directorio temporal si no existe
 try:
     shutil.rmtree(temp_dir, ignore_errors=True)
     os.makedirs(temp_dir)
 except OSError:
     pass
 
-'''
-Deletes the temporary directory and creates it again.
-This function is used to clean up the temporary directory used by the script.
-It first removes the entire directory tree using `shutil.rmtree()`, ignoring any errors that may occur.
-Then, it recreates the directory using `os.makedirs()`.
-This ensures that the temporary directory is in a clean state before the script starts processing any files.
-'''
+# Elimino el directorio temporal y lo creo de nuevo
 def limpiar_temporal(temp_dir):
-            # Elimino el directorio temporal y lo creo de nuevo
-            escribir_log("Elimino el directorio temporal y lo creo de nuevo")
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            os.makedirs(temp_dir)
+    escribir_log("Elimino el directorio temporal y lo creo de nuevo")
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    os.makedirs(temp_dir)
 
 def descomprimir_archivo(ruta_archivo, directorio_salida):
     patoolib.extract_archive(
@@ -73,23 +60,18 @@ def descomprimir_archivo(ruta_archivo, directorio_salida):
     
 
 def comprimir_directorio(ruta_directorio, archivo_salida):
-  nombres_archivos = os.listdir(ruta_directorio)
-  archivos = [os.path.join(ruta_directorio, nombre) for nombre in nombres_archivos]
-  patoolib.create_archive(
-      archivo_salida,  
-      archivos, 
-      format="zip",
-      compression=zipfile.ZIP_STORED
-  )
+    nombres_archivos = os.listdir(ruta_directorio)
+    archivos = [os.path.join(ruta_directorio, nombre) for nombre in nombres_archivos]
+    patoolib.create_archive(archivo_salida, archivos)
 
 
 def escribir_log(mensaje):
     with open(log_file, 'a') as log:
         log.write(f'{mensaje}\n')
-    print(f'{mensaje}\n')
+    print(f'{mensaje}')
+    
     
 def aplanar_directorio(directorio):
-
   # Mover archivos al directorio raíz
   for raiz, dirs, archivos in os.walk(directorio):
     for archivo in archivos:
@@ -103,21 +85,18 @@ def aplanar_directorio(directorio):
       os.rmdir(raiz)
     
 def cambiar_atributos(directorio):
-  for raiz, dirs, archivos in os.walk(directorio):
-    for nombre in archivos + dirs:
-      ruta = os.path.join(raiz, nombre)
-      atributos = os.stat(ruta).st_file_attributes
-
-      # Quitar atributos HRS
-      atributos &= ~stat.FILE_ATTRIBUTE_HIDDEN
-      atributos &= ~stat.FILE_ATTRIBUTE_READONLY
-      atributos &= ~stat.FILE_ATTRIBUTE_SYSTEM
-
-      # Asignar permisos lectura y escritura
-      atributos |= stat.FILE_ATTRIBUTE_ARCHIVE
-      atributos |= stat.FILE_ATTRIBUTE_NORMAL
-
-      os.chmod(ruta, atributos)
+    for raiz, dirs, archivos in os.walk(directorio):
+        for nombre in archivos + dirs:
+            ruta = os.path.join(raiz, nombre)
+            atributos = os.stat(ruta).st_file_attributes
+            # Quitar atributos HRS
+            atributos &= ~stat.FILE_ATTRIBUTE_HIDDEN
+            atributos &= ~stat.FILE_ATTRIBUTE_READONLY
+            atributos &= ~stat.FILE_ATTRIBUTE_SYSTEM
+            # Asignar permisos lectura y escritura
+            atributos |= stat.FILE_ATTRIBUTE_ARCHIVE
+            atributos |= stat.FILE_ATTRIBUTE_NORMAL
+            os.chmod(ruta, atributos)
 
 
 def borrar_directorios_MACOSX(directorio):
@@ -125,36 +104,36 @@ def borrar_directorios_MACOSX(directorio):
     if os.path.exists(ruta_ds_store):
         try: 
             shutil.rmtree(ruta_ds_store)
-            print(f'Borrando {ruta_ds_store}')
+            print(f'\tBorrando {ruta_ds_store}')
 
         except OSError:
             pass
     
     ruta_macosx = os.path.join(directorio, '__MACOSX')
     if os.path.exists(ruta_macosx):
-        print(f'Borrando {ruta_macosx}') 
+        print(f'\tBorrando {ruta_macosx}') 
         try:
             shutil.rmtree(ruta_macosx)
         except OSError:
             pass
 
 def borrar_ficheros_pequeños(directorio):
-    for root, files in os.walk(directorio):
-            for file_name in files:
-                file_path_temp = os.path.join(root, file_name)
-                if os.path.getsize(file_path_temp) < 2048:
-                    os.remove(file_path_temp)
-                    escribir_log("Borro %s" % file_path_temp)
+    for root, dirs, files in os.walk(directorio):
+        for file_name in files:
+            file_path_temp = os.path.join(root, file_name)
+            if os.path.getsize(file_path_temp) < 2048:
+                os.remove(file_path_temp)
+                escribir_log("\tBorro %s" % file_path_temp)
 
 def borrar_extensiones_prohibidas(directorio):
     extensiones_permitidas = [".bmp", ".jpg", ".png", ".wep", ".xml"]
-    for root, files in os.walk(directorio):
+    for root, dirs, files in os.walk(directorio):
         for file_name_temp in files:
-            file_path_temp = os.path.join(root, file_name_temp)
-            if not any(file_name.endswith(ext) for ext in extensiones_permitidas):
+            file_p = os.path.join(root, file_name_temp)
+            if not any(file_p.endswith(ext) for ext in extensiones_permitidas):
                 try: 
-                    os.remove(file_path_temp)
-                    escribir_log("Borro %s" % file_path_temp)
+                    os.remove(file_p)
+                    escribir_log("\tBorro %s" % file_p)
                 except PermissionError:
                     pass
 
@@ -168,12 +147,31 @@ def borrar_cadenas_prohibidas(directorio):
                     if cadena in file_name_temp:
                         try:
                             os.remove(file_path_temp)
-                            escribir_log("Borro %s" % file_path)
+                            escribir_log("\tBorro %s" % file_name_temp)
                         except PermissionError:
-                            escribir_log("No se pudo borrar %s" % file_path_temp)
+                            escribir_log("\tNo se pudo borrar %s" % file_path_temp)
                             limpiar_temporal(temp_dir)
                             exit(1)
 
+
+def crear_lista_ficheros(directorio):
+    # Primero me aseguro que se borra lista.txt
+    ruta_archivo = os.path.join(prog_dir, 'lista.txt')
+    try:
+        os.remove(ruta_archivo)
+        print('\tArchivo eliminado')
+    except OSError as e:
+        print(f'\tError eliminando archivo: {e.strerror}')
+
+    # Ahora creo la nueva lista de ficheros 
+    with open(os.path.join(prog_dir, 'lista.txt'), 'w') as lista:
+        for raiz, dirs, archivos in os.walk(directorio):
+            for archivo in archivos:
+                if archivo.endswith('.cbz') or archivo.endswith('.cbr'):
+                    ruta_completa = os.path.join(raiz, archivo)
+                    lista.write(ruta_completa + '\n')
+                    escribir_log(ruta_completa)
+                    lista.flush()
 
 escribir_log("###############################################################################")
 escribir_log("###############################################################################")
@@ -199,25 +197,12 @@ escribir_log("DIRECTORIO DE ENTRADA: %s" % input_dir)
 escribir_log("FICHEROS A PROCESAR:")
 
 # Creo el fichero de lista de ficheros
-"""
-Writes a list of all .cbz and .cbr files in the input directory to a file named 'lista.txt' in the same directory.
-This code iterates through all files and directories in the input directory, and writes the full path of each .cbz 
-and .cbr file to the 'lista.txt' file.
-This allows the rest of the script to easily access the list of comic files that need to be processed.
-Also writes the list of comic files to the log file.
-"""
-with open(os.path.join(prog_dir, 'lista.txt'), 'w') as lista:
-    for raiz, dirs, archivos in os.walk(input_dir):
-        for archivo in archivos:
-            if archivo.endswith('.cbz') or archivo.endswith('.cbr'):
-                ruta_completa = os.path.join(raiz, archivo)
-                lista.write(ruta_completa + '\n')
-                escribir_log(ruta_completa)
-                lista.flush()
+escribir_log("Creo la lista de ficheros")
+crear_lista_ficheros(input_dir)
         
 
 # Bucle para procesar cada fichero
-escribir_log("Inicio un bucle para procesar cada fichero\n")
+escribir_log("Inicio un bucle para procesar cada fichero")
 with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
     for file_path in lista:
         file_path = file_path.strip()
@@ -226,11 +211,8 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
         # Extraigo el comic en el directorio temporal
         escribir_log("Extraigo el comic en el directorio temporal")
         descomprimir_archivo(file_path, temp_dir)
-        
-        ''' Miro en el directorio temporal si hay algun fichero con extension cbr o cbz
-        y si existe alguno es que ese comic tiene dentro otros comics y debe mirarse con
-        detenimmient. Seguro que sera un fichero rar o zip
-        '''
+
+        # Comprobar que no hay comics dentro del comic        
         escribir_log("Miro en el directorio temporal si hay algun fichero con extension cbr o cbz")
         for archivo in os.listdir(temp_dir):
             nombre, extension = os.path.splitext(archivo)
@@ -240,7 +222,7 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
                 sys.exit(1)            
 
         # Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema
-        escribir_log("Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema\n")
+        escribir_log("Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema")
         cambiar_atributos(temp_dir)
         
         # Aplanar directorio temporal, es decir muevo todos los ficheros del directorio temporal y 
@@ -268,8 +250,9 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
         directorio = os.path.dirname(file_path)
         nombre_archivo = os.path.basename(file_path)
         nuevo_nombre = nombre_archivo + ".bak"
-        ruta_nueva = os.path.join(directorio, nuevo_nombre)
-        os.rename(file_path, ruta_nueva)
+        comic_antiguo = os.path.join(directorio, nuevo_nombre)
+        os.rename(file_path, comic_antiguo)
+        escribir_log("Renombro fichero de %s -> %s" % (nombre_archivo, nuevo_nombre))
 
 
         # Comprimo todos los ficheros de nuevo en modo store con la extensión cbz
@@ -283,16 +266,16 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
             exit(1)
                         
         # Si se ha creado el nuevo fichero y su longitud es aproximadamente igual al fichero original, lo borro
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and os.path.getsize(file_path) > os.path.getsize(ruta_nueva):
-            os.remove(file_path)
-            escribir_log("Se ha creado el nuevo fichero comic")
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and os.path.getsize(file_path) <= os.path.getsize(comic_antiguo):
+            os.remove(comic_antiguo)
+            escribir_log("Se ha creado el nuevo fichero de comic")
         else:
             # Borro el nuevo fichero y renombro el antiguo como era originalmente y salgo con error
-            escribir_log("No se ha podido borrar el comic antiguo. Restaurandolo%s" % file_path)
+            escribir_log("No se ha podido borrar el comic antiguo. Restaurando: %s" % file_path)
             # Borro el nuevo
-            os.remove(ruta_nueva)
+            os.remove(file_path)
             # renombro el antiguo.
-            os.rename(file_path, nombre_archivo)
+            os.rename(comic_antiguo, file_path)
             exit(1)
             
 
