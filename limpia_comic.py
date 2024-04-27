@@ -9,9 +9,12 @@ import patoolib
 
 # Defino las variables generales
 if not len(sys.argv) > 1:
-    input_value = r"D:\COMICS_MALOS\COMIC_MALO.cbz"
+    input_value = r"D:\COMICS_MALOS"
 else:
     input_value = sys.argv[1]
+
+
+
 
 if os.path.isdir(input_value):
   # Es directorio
@@ -19,8 +22,25 @@ if os.path.isdir(input_value):
 else:
   # Es archivo
   input_dir = os.path.dirname(input_value)
+
+# Compruebo que el directorio no esta vacion
+if len(os.listdir(input_dir)) == 0:
+    print("DIRECTORIO VACIO")
+    sys.exit(1)
+          
+
+# Compruebo que existen ficheros de comics
+extensiones = ['.cbr', '.cbz']
+for raiz, dirs, archivos in os.walk(input_dir):
+  for archivo in archivos:
+    if archivo.endswith(extensiones):
+      print(f'Encontrado {archivo} en {raiz}')
+      encontrado = True
+      sys.exit(0) 
+
   
-  
+# Modo whatif es el modo a prueba, solo es un modo de deteccion de fallos
+whatif_mode = True  
 
 # Defino el directorio del programa como el directorio actual 
 prog_dir = os.path.dirname(os.path.realpath(__file__))
@@ -53,16 +73,15 @@ def limpiar_temporal(temp_dir):
     os.makedirs(temp_dir)
 
 def descomprimir_archivo(ruta_archivo, directorio_salida):
-    patoolib.extract_archive(
-        ruta_archivo,
-        outdir=directorio_salida
-        )
+    patoolib.extract_archive(ruta_archivo, verbosity=0, outdir=directorio_salida )
     
 
 def comprimir_directorio(ruta_directorio, archivo_salida):
-    nombres_archivos = os.listdir(ruta_directorio)
-    archivos = [os.path.join(ruta_directorio, nombre) for nombre in nombres_archivos]
-    patoolib.create_archive(archivo_salida, archivos)
+    # Hay que terminar con un slash para que patoollib lo tome como una ruta relativa
+    ruta_directorio = ruta_directorio + '\\'
+    # creo una tupla de 1 elemento para pasar el directorio a comprimir
+    archivos = (ruta_directorio,)
+    patoolib.create_archive(archivo_salida, archivos, verbosity=-1, program=None, interactive=False)
 
 
 def escribir_log(mensaje):
@@ -73,16 +92,16 @@ def escribir_log(mensaje):
     
 def aplanar_directorio(directorio):
   # Mover archivos al directorio raíz
-  for raiz, dirs, archivos in os.walk(directorio):
-    for archivo in archivos:
-      ruta_original = os.path.join(raiz, archivo)
-      ruta_destino = os.path.join(directorio, archivo)
-      shutil.move(ruta_original, ruta_destino)
+    for raiz, dirs, archivos in os.walk(directorio):
+        for archivo in archivos:
+            ruta_original = os.path.join(raiz, archivo)
+            ruta_destino = os.path.join(directorio, archivo)
+            shutil.move(ruta_original, ruta_destino)
 
   # Eliminar directorios vacíos    
-  for raiz, dirs, archivos in os.walk(directorio, topdown=False):
-    if not os.listdir(raiz):
-      os.rmdir(raiz)
+    for raiz, dirs, archivos in os.walk(directorio, topdown=False):
+        if not os.listdir(raiz):
+            os.rmdir(raiz)
     
 def cambiar_atributos(directorio):
     for raiz, dirs, archivos in os.walk(directorio):
@@ -105,7 +124,6 @@ def borrar_directorios_MACOSX(directorio):
         try: 
             shutil.rmtree(ruta_ds_store)
             print(f'\tBorrando {ruta_ds_store}')
-
         except OSError:
             pass
     
@@ -117,14 +135,16 @@ def borrar_directorios_MACOSX(directorio):
         except OSError:
             pass
 
+# Borro los ficheros pequeños excepto los xml
 def borrar_ficheros_pequeños(directorio):
     for root, dirs, files in os.walk(directorio):
         for file_name in files:
             file_path_temp = os.path.join(root, file_name)
-            if os.path.getsize(file_path_temp) < 2048:
+            if os.path.getsize(file_path_temp) < 2048 and not file_path_temp.endswith('.xml'):
                 os.remove(file_path_temp)
-                escribir_log("\tBorro %s" % file_path_temp)
+                escribir_log("""\tBorro %s""" % file_path_temp)
 
+# Borro todas las extensiones que no sean de imagenes o xml
 def borrar_extensiones_prohibidas(directorio):
     extensiones_permitidas = [".bmp", ".jpg", ".png", ".wep", ".xml"]
     for root, dirs, files in os.walk(directorio):
@@ -137,7 +157,7 @@ def borrar_extensiones_prohibidas(directorio):
                 except PermissionError:
                     pass
 
-def borrar_cadenas_prohibidas(directorio):
+def borrar_cadenas_prohibidas(directorio): 
     with open(patrones_prohibidos_file, "r") as cadenas_prohibidas:
         for cadena in cadenas_prohibidas:
             cadena = cadena.strip()
@@ -194,15 +214,25 @@ escribir_log("Imprimo los datos iniciales")
 
 # Creo la lista de ficheros
 escribir_log("DIRECTORIO DE ENTRADA: %s" % input_dir)
+
+# Miro si el directorio de entrada contine algun archivo con extension cbr o cbz
+# Si no lo contiene, termino el programa
+extensiones = ['.cbr', '.cbz']
+contiene_archivos = False
+with os.scandir(input_dir) as it:
+  for entrada in it:
+    if not (entrada.is_file() and entrada.path.endswith(extensiones)):
+        exit(1)
+
 escribir_log("FICHEROS A PROCESAR:")
 
 # Creo el fichero de lista de ficheros
-escribir_log("Creo la lista de ficheros")
+escribir_log("Creando la lista de comics a procesar")
 crear_lista_ficheros(input_dir)
-        
 
 # Bucle para procesar cada fichero
 escribir_log("Inicio un bucle para procesar cada fichero")
+escribir_log("#####################################################################################")
 with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
     for file_path in lista:
         file_path = file_path.strip()
@@ -214,12 +244,19 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
 
         # Comprobar que no hay comics dentro del comic        
         escribir_log("Miro en el directorio temporal si hay algun fichero con extension cbr o cbz")
-        for archivo in os.listdir(temp_dir):
-            nombre, extension = os.path.splitext(archivo)
-            if extension in [".cbr", ".cbz"]:
-                escribir_log("Se encontró comics dentro del comic. No se procesara")
-                limpiar_temporal(temp_dir)
-                sys.exit(1)            
+        extensiones_comics = ['.cbr', '.cbz']
+        encontrado = False
+        for raiz, dirs, archivos in os.walk(temp_dir):
+            for archivo in archivos:
+                extension = os.path.splitext(archivo)[1]
+                if extension in extensiones_comics:
+                    print(f'Encontrado archivo {archivo} con extensión no permitida')
+                    encontrado = True
+                    break
+            if encontrado:
+                break
+        if not encontrado:
+            print('No se encontraron archivos con extensiones .cbr o .cbz')          
 
         # Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema
         escribir_log("Cambio los atributos por si acaso alguno trae algo raro como oculto o de sistema")
@@ -251,7 +288,7 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
         nombre_archivo = os.path.basename(file_path)
         nuevo_nombre = nombre_archivo + ".bak"
         comic_antiguo = os.path.join(directorio, nuevo_nombre)
-        os.rename(file_path, comic_antiguo)
+        shutil.move(file_path, comic_antiguo)
         escribir_log("Renombro fichero de %s -> %s" % (nombre_archivo, nuevo_nombre))
 
 
@@ -266,7 +303,7 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
             exit(1)
                         
         # Si se ha creado el nuevo fichero y su longitud es aproximadamente igual al fichero original, lo borro
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0 and os.path.getsize(file_path) <= os.path.getsize(comic_antiguo):
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 50000 and ( os.path.getsize(file_path)*1.2 <= os.path.getsize(comic_antiguo) or os.path.getsize(file_path)*1.2 >= os.path.getsize(comic_antiguo)):
             os.remove(comic_antiguo)
             escribir_log("Se ha creado el nuevo fichero de comic")
         else:
@@ -277,7 +314,10 @@ with open(os.path.join(prog_dir, "lista.txt"), "r") as lista:
             # renombro el antiguo.
             os.rename(comic_antiguo, file_path)
             exit(1)
-            
+        
+        limpiar_temporal(temp_dir)
+        escribir_log("#####################################################################################")
+        
 
 escribir_log("Fin del bucle\n")
 exit()
